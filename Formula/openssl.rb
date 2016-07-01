@@ -7,6 +7,13 @@ class Openssl < Formula
   sha256 "1d4007e53aad94a5b2002fe045ee7bb0b3d98f1a47f8b2bc851dcd1c74332919"
   revision 1
 
+  head "https://github.com/openssl/openssl.git"
+
+  devel do
+    url "https://www.openssl.org/source/openssl-1.1.0-pre5.tar.gz"
+    sha256 "25acbdfa5e0259ed20159670e88ddb4257970f80ce923427bd201133e6e580db"
+  end
+
   bottle do
     sha256 "55728391c10d1c33c069ef5bf3e5ca77334605ab6c1c7810b6eedc91337807c2" => :el_capitan
     sha256 "a3bc912aae8f79ed28d885dce49f582737a6e528b9d707eee208ed3b6ea41f5d" => :yosemite
@@ -18,6 +25,7 @@ class Openssl < Formula
 
   option :universal
   option "without-test", "Skip build-time tests (not recommended)"
+  option "with-trace", "Enable s_client support for the -trace option"
 
   deprecated_option "without-check" => "without-test"
 
@@ -45,13 +53,15 @@ class Openssl < Formula
     # which can cause some odd edge cases & isn't intended. Unset for safety.
     ENV.delete("PERL")
 
-    # Load zlib from an explicit path instead of relying on dyld's fallback
-    # path, which is empty in a SIP context. This patch will be unnecessary
-    # when we begin building openssl with no-comp to disable TLS compression.
-    # https://langui.sh/2015/11/27/sip-and-dlopen
-    inreplace "crypto/comp/c_zlib.c",
-              'zlib_dso = DSO_load(NULL, "z", NULL, 0);',
-              'zlib_dso = DSO_load(NULL, "/usr/lib/libz.dylib", NULL, DSO_FLAG_NO_NAME_TRANSLATION);'
+    if build.stable?
+      # Load zlib from an explicit path instead of relying on dyld's fallback
+      # path, which is empty in a SIP context. This patch will be unnecessary
+      # when we begin building openssl with no-comp to disable TLS compression.
+      # https://langui.sh/2015/11/27/sip-and-dlopen
+      inreplace "crypto/comp/c_zlib.c",
+                'zlib_dso = DSO_load(NULL, "z", NULL, 0);',
+                'zlib_dso = DSO_load(NULL, "/usr/lib/libz.dylib", NULL, DSO_FLAG_NO_NAME_TRANSLATION);'
+    end
 
     if build.universal?
       ENV.permit_arch_flags
@@ -74,7 +84,9 @@ class Openssl < Formula
       end
 
       ENV.deparallelize
-      system "perl", "./Configure", *(configure_args + arch_args[arch])
+      args = configure_args
+      args << "enable-ssl-trace" if build.with? "trace"
+      system "perl", "./Configure", *(args + arch_args[arch])
       system "make", "depend"
       system "make"
       system "make", "test" if build.with?("test")
