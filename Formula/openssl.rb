@@ -157,6 +157,10 @@ class Openssl < Formula
 
     openssldir.mkpath
     (openssldir/"cert.pem").atomic_write(valid_certs.join("\n"))
+
+    unless build.stable?
+      cp "test/ct/log_list.conf", "#{openssldir}/ct_log_list.cnf"
+    end
   end
 
   def caveats; <<-EOS.undent
